@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Like } from 'typeorm';
+import { Repository, Like, FindOptionsWhere } from 'typeorm';
 import { Document } from './entities/document.entity';
 import { CreateDocumentDto } from './dto/create-document.dto';
 import { UpdateDocumentDto } from './dto/update-document.dto';
@@ -34,30 +34,29 @@ export class DocumentsService {
     page: number = 1,
     limit: number = 10,
     search?: string,
+    tag?: string,
   ): Promise<{ data: Document[]; total: number; page: number; limit: number }> {
-    // ak je search, pridaj or cond pre name, description, tag
-    if (search) {
-      const [data, total] = await this.documentRepo.findAndCount({
-        where: [
-          { userId, name: Like(`%${search}%`) },
-          { userId, description: Like(`%${search}%`) },
-          { userId, tag: Like(`%${search}%`) },
-        ],
-        skip: (page - 1) * limit,
-        take: limit,
-      });
+    let whereConditions:
+      | FindOptionsWhere<Document>[]
+      | FindOptionsWhere<Document> = { userId };
 
-      return {
-        data,
-        total,
-        page,
-        limit,
-      };
+    if (search && tag) {
+      whereConditions = [
+        { userId, tag, name: Like(`%${search}%`) },
+        { userId, tag, description: Like(`%${search}%`) },
+      ];
+    } else if (search) {
+      whereConditions = [
+        { userId, name: Like(`%${search}%`) },
+        { userId, description: Like(`%${search}%`) },
+        { userId, tag: Like(`%${search}%`) },
+      ];
+    } else if (tag) {
+      whereConditions = { userId, tag };
     }
 
-    // ak nie tak paginate data pre prihlaeneho usera
     const [data, total] = await this.documentRepo.findAndCount({
-      where: { userId },
+      where: whereConditions,
       skip: (page - 1) * limit,
       take: limit,
     });
@@ -68,6 +67,18 @@ export class DocumentsService {
       page,
       limit,
     };
+  }
+
+  async getAllTags(userId: number): Promise<string[]> {
+    const results = await this.documentRepo
+      .createQueryBuilder('document')
+      .select('DISTINCT document.tag', 'tag')
+      .where('document.userId = :userId', { userId })
+      .andWhere('document.tag IS NOT NULL')
+      .andWhere('document.tag != :empty', { empty: '' })
+      .getRawMany<{ tag: string }>();
+
+    return results.map((result) => result.tag);
   }
 
   async findOne(id: number, userId: number): Promise<Document> {

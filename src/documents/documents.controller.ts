@@ -45,13 +45,20 @@ export class DocumentsController {
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 10,
     @Query('search') search?: string,
+    @Query('tag') tag?: string,
   ) {
-    return this.documentsService.findAll(user.userId, +page, +limit, search);
+    return this.documentsService.findAll(
+      user.userId,
+      +page,
+      +limit,
+      search,
+      tag,
+    );
   }
 
-  @Get(':id')
-  findOne(@Param('id') id: string, @User() user: { userId: number }) {
-    return this.documentsService.findOne(+id, user.userId);
+  @Get('tags')
+  getTags(@User() user: { userId: number }) {
+    return this.documentsService.getAllTags(user.userId);
   }
 
   @Get(':id/download')
@@ -72,6 +79,11 @@ export class DocumentsController {
       'Content-Disposition': `attachment; filename="${document.filename}"`,
     });
     return new StreamableFile(file);
+  }
+
+  @Get(':id')
+  findOne(@Param('id') id: string, @User() user: { userId: number }) {
+    return this.documentsService.findOne(+id, user.userId);
   }
 
   @Patch(':id')
